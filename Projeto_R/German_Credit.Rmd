@@ -1,0 +1,224 @@
+---
+title: "__German Credit__"
+author: "Aline Gomes de Araujo Santos"
+date: "29/04/2021"
+output: html_document
+---
+
+## Explorações através do Risco de Crédito Alemão (German Credit) para entender suas distribuições e padrões.
+
+## __Conteúdo:__
+
+#### __1. Introdução__
+ * Informações sobre o conjunto de Dados 
+
+#### __2. Librarys__
+ * Librarys - Importando Dataset
+
+#### __3. Manipulação de dados__
+ * Selecionar Variáveis -- `dplyr::select()`
+ * Manipular Variáveis -- `dplyr::mutate()`
+ 
+#### __4. Visualização de Dados__
+
+#### __5. Regressão Linear__
+
+#### __6. Regressão Logistica__
+
+
+
+## __1. Introdução:__
+
+
+### Contexto:
+ O conjunto de dados original contém 1000 entradas com 20 atributos categoriais / simbólicos preparados pelo Prof. Hofmann. Nesse conjunto de dados, cada entrada representa uma pessoa que recebe um crédito por um banco. Cada pessoa é classificada como risco de crédito bom ou ruim, de acordo com o conjunto de atributos.
+ 
+ 
+### Conteúdo:
+ É quase impossível entender o conjunto de dados original devido ao seu complicado sistema de categorias e símbolos. Assim pesquisei um dataset do mesmo autor mas em formato csv para usar nesse projeto. Várias colunas são simplesmente ignoradas, porque, na minha opinião, elas não são importantes ou suas descrições são obscuras. Os atributos selecionados são:
+
+
+- `Age`: numeric
+- `Sex`: text: male, female
+- `Job`: numeric: 0 - unskilled and non-resident, 1 - unskilled and resident, 2 - skilled, 3 - highly skilled
+- `Housing`: text: own, rent, or free
+- `Saving accounts`: text - little, moderate, quite rich, rich
+- `Checking account`: numeric, in DM - Deutsch Mark
+- `Credit amount`: numeric, in DM
+- `Duration`:  numeric, in month
+- `Purpose`: text: car, furniture/equipment, radio/TV, domestic appliances, repairs, education, business, vacation/others
+- `Risk`: Value target - Good = 0 or Bad Risk =1
+- `Result`: Good or Bad, Risk
+
+
+
+## __2. Librarys:__
+- Librarys
+- Importando Dataset
+
+```{r readr-german}
+library(readr)
+german <- read_csv("datasets/german.csv")
+head(german)
+
+```
+
+
+## __3. Manipulação de dados:__
+[`{dplyr}`](https://dplyr.tidyverse.org/)
+
+
+### Selecionar Variáveis 
+
+```{r dplyr-select}
+library(dplyr)
+german <- german %>% 
+  select(Age, Sex, Job, Housing,
+         `Saving_accounts` = `Saving accounts`,
+         `Checking_account`= `Checking account`,
+         `Credit_amount` = `Credit amount`,
+          Duration, Purpose, Risk,                                   
+         Result)
+
+german %>% 
+  rename_with(~gsub(" ", "_", .x))
+```
+
+
+### Manipular Variáveis 
+
+Teste booleano e gerar um valor caso o teste seja `Good`(0) e outro valor caso o teste seja `Bad`(1)
+
+```{r german-if_else}
+german %>% 
+  mutate(
+    Result_Good = if_else(Result == "bad", 1L, 0L)
+  ) %>% 
+  select(starts_with("Result"))
+
+```
+
+
+## __4. Visualização de Dados__
+
+ Ajustar uma linha de tendêndia (suavizada ou linear) aos dados e a exibe junto com o seu erro padrão. Muitas vezes usado em conjunto com o `geom_point()`.
+
+```{r ggplot-data}
+library(ggplot2) # `require(ggplot2)` também serve 99.99% usam `library()`
+
+ggplot(german, aes(Age , Credit_amount, colour = Duration )) + 
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+### Diagrama de caixa
+
+```{r geom-boxplot}
+german %>% 
+  ggplot(aes(Purpose,Credit_amount,colour = Purpose)) +
+  geom_boxplot()
+```
+
+### Histogram
+
+```{r geom-histogram}
+german %>% 
+  ggplot(aes(Credit_amount)) +
+  geom_histogram(bins = 30)
+```
+
+### Estéticas com `aes()`
+
+```{r aes-fill}
+german %>% 
+  ggplot(aes(Result, fill = Purpose )) +
+  geom_bar()
+```
+
+## __5. Regressão Linear__
+
+### Interpretação Geométrica
+
+Regressão como uma reta(Encontrar a melhor reta)
+
+```{r regressao-reta, echo=FALSE, warning=FALSE, message=FALSE, fig.cap='Uma relação entre variáveis representada por uma reta de tendência'}
+library(ggplot2)
+library(dplyr)
+library(patchwork)
+# Generate synthetic data with a clear linear relationship
+german <- tibble(
+  x = seq(from = 1, to = 300),
+  y = rnorm(n = 300, mean = x + 2, sd = 25))
+p1 <- german %>%
+  ggplot(aes(x = x, y = y)) +
+  geom_point(color = "steelblue")
+p2 <- p1 +
+  geom_smooth(method = "lm", se =  FALSE, color = "Red")
+p1 + p2 + plot_layout(nrow = 1, widths = 1)
+```
+
+
+### Interpretação Matemática
+
+Regressão como otimização (Escolher a melhor reta)
+ 
+```{r regressao-mse, echo=FALSE, warning=FALSE, message=FALSE, fig.cap='A melhor reta que minimiza a distância dos erros'}
+library(broom)
+lm_german <- augment(lm(y ~ x, data = german))
+p3 <- lm_german %>%
+  ggplot(aes(x = x, y = y)) +
+  geom_point(color = "steelblue") +
+  geom_smooth(method = "lm", se =  FALSE, color = "Red")
+p4 <- p3 +
+  geom_segment(aes(xend = x, yend = .fitted))
+p3 + p4 + plot_layout(nrow = 1, widths = 1)
+```
+
+```{r german_model}
+library(readr)
+german <- read_csv("datasets/german.csv")
+head(german)
+
+```
+
+### Interpretação Geométrica
+
+Regressão como poder de associação entre variáveis controlando para diversos outros efeitos.
+
+```{r german-model1}
+german_1 <- lm(Risk ~ Job, data = german)
+summary(german_1)
+```
+
+
+```{r german-model2}
+german_2 <- lm(Risk ~ Age + Job + `Credit amount` +   Duration , data = german)
+summary(german_2)
+```
+
+
+```{r kidiq-model3}
+german_3 <- lm(Risk ~ Age * Job * `Credit amount`*   Duration , data = german)
+summary(german_3)
+```
+
+
+## __6. Regressão Logística__
+
+
+Coeficientes:`exp()` 
+
+```{r exp-logit}
+exp(german_2$coefficients)
+```
+
+```{r exp-logit2}
+exp(german_3$coefficients)
+```
+
+
+```{r ggeffects-lm}
+library(ggeffects)
+plot(ggeffect(german_3))
+```
+
